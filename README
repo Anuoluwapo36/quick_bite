@@ -1,105 +1,95 @@
-# quick_bite — Food Ordering Web Application
-
-A full-stack Java web application for a fast-food ordering platform, with separate  
-customer and administrator interfaces. Built as a coursework / portfolio project.
-
-**Stack:** Java 17 · Jakarta Servlet API · JSP · MySQL · JDBC · Gson · BCrypt
-
----
-
-## What it does
-
-**Customer side**
-
-- Register / login / logout with BCrypt-hashed passwords
-- Browse menu, view product detail, place orders
-- Order history and profile management
-- Payment flow and dashboard stats
-
-**Admin side**
-
-- Dashboard with revenue and order metrics (today's revenue, completed orders, average order value)
-- Product CRUD (add, edit, delete, image upload)
-- Order status management via a small JSON endpoint
-- Sales reporting
-
----
-
-## Architecture
-
-```
-controller/   Servlets handling customer-facing requests
-servlet/      Servlets handling admin-facing requests
-dao/          Data access objects — all SQL lives here
-model/        Domain objects (Order, Product, Payment, Customer, Admin, ...)
-sqlconnection/  MySQL connection management
-```
-
-**Layered design.** Servlets never write SQL. They call a DAO, which owns the query and  
-maps result sets to model objects. `model` has no knowledge of the database layer.
-
-### Notable implementation details
-
-**Session-based access control.** `NoCacheFilter` is mapped to `/admin/*` and  
-intercepts every admin request. Static assets and the login page are allow-listed;  
-everything else requires a valid `admin` session attribute or the user is redirected.  
-Protects the admin surface at the filter layer rather than scattering checks across  
-every servlet.
-
-**SQL injection prevention.** All queries use `PreparedStatement` with bound parameters.  
-No string concatenation of user input into SQL — the one exception is a static query  
-string built entirely from literals.
-
-**Resource handling.** `try-with-resources` closes `Connection`, `PreparedStatement`,  
-and `ResultSet` deterministically, so no leaked handles under load.
-
-**Multi-row result → object graph.** `getAllOrders()` runs a single  
-`LEFT JOIN` across `orders` / `order_items` / `products` and reassembles parent-child  
-object graphs in a single pass by tracking the current `order_id`, avoiding N+1 queries.
-
-**JSON over JSP for AJAX actions.** `OrderActionServlet` returns a JSON response for  
-async status updates instead of a full page reload.
-
----
-
-## Running it
-
-Requires JDK 17+, MySQL 8+, and a servlet container (Tomcat 9.5+).
-
-```bash
-# 1. Create the database
-mysql -u root -p < schema.sql
-
-# 2. Configure the connection
-cp local.properties.example local.properties
-# then edit with your MySQL credentials
-
-# 3. Build
-./gradlew clean build       # or add the project to your IDE and run on Tomcat
-
-# 4. Deploy
-# copy target/quick_bite.war into Tomcat's webapps/ and start Tomcat
-```
-
-Visit `http://localhost:8080/quick_bite/`
-
----
-
-## Repository layout
-
-```
+QUICK BITE
+A food ordering web application with separate customer and admin interfaces, built with Java servlets, JSP, and MySQL.
+Features
+For customers
+- Register, log in, log out
+- Browse the menu and view product details
+- Place orders
+- View order history
+- Update profile
+For admins
+- Dashboard showing today's revenue, completed orders, and average order value
+- Add, edit, and delete products
+- Manage product images
+- Update order status
+- View sales reports
+Technologies
+Area
+What I used
+Language
+Java
+Web framework
+Jakarta Servlet API
+View layer
+JSP, CSS
+Database
+MySQL
+Data access
+JDBC
+Security
+BCrypt password hashing, session-based access control
+Helpers
+Gson for JSON
+Project structure
 src/main/java/com/quick_bite/
-├── controller/     Customer-facing servlets
-├── servlet/        Admin-facing servlets and filters
-├── dao/            Database access
-├── model/          Domain objects
-└── sqlconnection/  Connection management
+├── controller/       Servlets for the customer side
+├── servlet/          Servlets and filters for the admin side
+├── dao/              Database access — all SQL lives here
+├── model/            Domain classes
+└── sqlconnection/    Database connection setup
 
 src/main/webapp/
-├── admin/          Admin UI (JSP + CSS)
-├── customer/       Customer UI (JSP)
-└── WEB-INF/        web.xml, library JARs
-```
-
-Third-party JARs are excluded via `.gitignore`; add them to your local `WEB-INF/lib/`  
-using the versions listed above.
+├── admin/            Admin pages
+├── customer/         Customer pages
+└── WEB-INF/          web.xml and library JARs
+How the code is organised
+The project follows a layered structure where each layer has one job:
+Servlet layer — handles HTTP requests and responses. Servlets do not write SQL.
+DAO layer — owns the database queries. Each DAO class maps to a specific kind of record, for example OrderDAO or ProductDAO.
+Model layer — holds the data classes. These have no knowledge of the database.
+So the flow is: a servlet receives a request → calls a DAO → the DAO runs the query and returns model objects → the servlet passes them to a JSP page.
+Things I focused on
+Protecting the admin area in one place. Instead of adding a login check inside every admin page, NoCacheFilter checks the whole /admin/ area at once. Pages that should always be reachable, like the login page and CSS files, are listed as exceptions. Anything else requires a logged-in admin session, otherwise the user is redirected.
+Writing queries safely. Every SQL statement uses PreparedStatement with parameters. User input is never inserted into a query string.
+Closing resources properly. Database connections, statements, and results are closed using try-with-resources, so they are always released even if something fails.
+Avoiding repeated queries. OrderDAO.getAllOrders() needs each order together with its items and product names. Instead of running a new query for every single order, it runs one query using table joins and builds up the order objects as the results come back.
+Running the project
+You will need:
+- JDK 17 or newer
+- MySQL 8 or newer
+- Tomcat 10.1 or newer
+There is no build file for this project. It is opened in IntelliJ IDEA and run on Tomcat.
+Step 1 — Create the database
+Create a MySQL database named quick_bite, then write a SQL script to create the tables:
+orders, order_items, products, product_images, payments, customers, admins, activity
+Check the SQL queries inside dao/OrderDAO.java and dao/PaymentDAO.java to match the column names used there.
+Step 2 — Set your database password
+Open sqlconnection/DBConnection.java and put in your own MySQL username and password.
+Do not commit a real password to a public repository. If you plan to push this project to GitHub, read the note near the bottom of this page first.
+Step 3 — Add the library files
+These go in src/main/webapp/WEB-INF/lib/. They are not included in the repository, so you download them yourself:
+File
+What it is for
+mysql-connector-j-9.4.0.jar
+Connects Java to MySQL
+jbcrypt-0.4.jar
+Securely hashes passwords
+gson-2.10.1.jar
+Handles JSON
+Step 4 — Run it
+1. Open the project in IntelliJ IDEA.
+2. Add a Tomcat 10.1+ server.
+3. Set the project artifact to war:exploded.
+4. Start the server.
+5. Go to http://localhost:8080/quick_bite/
+A note on the database password
+DBConnection.java originally contained a real MySQL password in plain text. That file was public, so anyone could read it.
+If you use this project, put your credentials in environment variables instead of writing them in the code:
+String url = System.getenv("DB_URL");
+String user = System.getenv("DB_USER");
+String password = System.getenv("DB_PASSWORD");
+Then set those three values on your machine before running the project. Never push real passwords to GitHub — and remember that deleting a file does not remove it from the repository history.
+Notes
+- The library files, the build folder, and IntelliJ settings are excluded using .gitignore, so they must be added locally.
+- Classes named ProductImage, TopProduct, and WeeklySalesReport support the reporting and product features.
+- The servlets use the newer jakarta.servlet package, but web.xml still declares version 2.4. The project runs on Tomcat 10.1+, and updating web.xml to version 5.0 would make it consistent.
