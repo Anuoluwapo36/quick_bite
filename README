@@ -1,0 +1,105 @@
+# quick_bite — Food Ordering Web Application
+
+A full-stack Java web application for a fast-food ordering platform, with separate  
+customer and administrator interfaces. Built as a coursework / portfolio project.
+
+**Stack:** Java 17 · Jakarta Servlet API · JSP · MySQL · JDBC · Gson · BCrypt
+
+---
+
+## What it does
+
+**Customer side**
+
+- Register / login / logout with BCrypt-hashed passwords
+- Browse menu, view product detail, place orders
+- Order history and profile management
+- Payment flow and dashboard stats
+
+**Admin side**
+
+- Dashboard with revenue and order metrics (today's revenue, completed orders, average order value)
+- Product CRUD (add, edit, delete, image upload)
+- Order status management via a small JSON endpoint
+- Sales reporting
+
+---
+
+## Architecture
+
+```
+controller/   Servlets handling customer-facing requests
+servlet/      Servlets handling admin-facing requests
+dao/          Data access objects — all SQL lives here
+model/        Domain objects (Order, Product, Payment, Customer, Admin, ...)
+sqlconnection/  MySQL connection management
+```
+
+**Layered design.** Servlets never write SQL. They call a DAO, which owns the query and  
+maps result sets to model objects. `model` has no knowledge of the database layer.
+
+### Notable implementation details
+
+**Session-based access control.** `NoCacheFilter` is mapped to `/admin/*` and  
+intercepts every admin request. Static assets and the login page are allow-listed;  
+everything else requires a valid `admin` session attribute or the user is redirected.  
+Protects the admin surface at the filter layer rather than scattering checks across  
+every servlet.
+
+**SQL injection prevention.** All queries use `PreparedStatement` with bound parameters.  
+No string concatenation of user input into SQL — the one exception is a static query  
+string built entirely from literals.
+
+**Resource handling.** `try-with-resources` closes `Connection`, `PreparedStatement`,  
+and `ResultSet` deterministically, so no leaked handles under load.
+
+**Multi-row result → object graph.** `getAllOrders()` runs a single  
+`LEFT JOIN` across `orders` / `order_items` / `products` and reassembles parent-child  
+object graphs in a single pass by tracking the current `order_id`, avoiding N+1 queries.
+
+**JSON over JSP for AJAX actions.** `OrderActionServlet` returns a JSON response for  
+async status updates instead of a full page reload.
+
+---
+
+## Running it
+
+Requires JDK 17+, MySQL 8+, and a servlet container (Tomcat 9.5+).
+
+```bash
+# 1. Create the database
+mysql -u root -p < schema.sql
+
+# 2. Configure the connection
+cp local.properties.example local.properties
+# then edit with your MySQL credentials
+
+# 3. Build
+./gradlew clean build       # or add the project to your IDE and run on Tomcat
+
+# 4. Deploy
+# copy target/quick_bite.war into Tomcat's webapps/ and start Tomcat
+```
+
+Visit `http://localhost:8080/quick_bite/`
+
+---
+
+## Repository layout
+
+```
+src/main/java/com/quick_bite/
+├── controller/     Customer-facing servlets
+├── servlet/        Admin-facing servlets and filters
+├── dao/            Database access
+├── model/          Domain objects
+└── sqlconnection/  Connection management
+
+src/main/webapp/
+├── admin/          Admin UI (JSP + CSS)
+├── customer/       Customer UI (JSP)
+└── WEB-INF/        web.xml, library JARs
+```
+
+Third-party JARs are excluded via `.gitignore`; add them to your local `WEB-INF/lib/`  
+using the versions listed above.
